@@ -55,7 +55,7 @@ html, body {
 }
 
 .token-number {
-  font-size: 150px;
+  font-size: 80px;
   font-family: 'Inter', sans-serif;
   font-weight: 700;
   line-height: 0.9;
@@ -208,11 +208,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (state.isHindi) {
       room.textContent = `रूम : ${toHindi(data.room_number)}`;
       label.textContent = "टोकन";
-      token.textContent = toHindi(data.token_number);
+      token.textContent = toHindi(data.token_number_display || data.token_number);
     } else {
       room.textContent = `ROOM : ${data.room_number}`;
       label.textContent = "TOKEN";
-      token.textContent = data.token_number;
+      token.textContent = data.token_number_display || data.token_number;
     }
   }
 
@@ -296,32 +296,40 @@ document.addEventListener('DOMContentLoaded', async () => {
       .order('created_at', { ascending: false })
       .limit(30);
 
-    const doctorMap = {};
-    data.forEach(r => {
-      if (!doctorMap[r.doctor_name]) {
-        doctorMap[r.doctor_name] = r;
-      }
+      const doctorMap = {};
+      data.forEach(r => {
+        if (!doctorMap[r.doctor_name]) {
+          doctorMap[r.doctor_name] = [];
+        }
+        if (doctorMap[r.doctor_name].length < 3) {
+          doctorMap[r.doctor_name].push(r);
+        }
+      });
+
+      Object.keys(doctorMap).forEach(doctor => {
+        const docTokens = doctorMap[doctor];
+        // We consider it "changed" if the most recent token (index 0) changed
+        const mostRecent = docTokens[0];
+        
+        if (!latestTokens[doctor] || latestTokens[doctor].token_number !== mostRecent.token_number) {
+          latestTokens[doctor] = {
+            ...mostRecent,
+            token_number_display: docTokens.map(t => t.token_number).join(',')
+          };
+          handleNewToken(doctor, mostRecent.token_number);
+        }
+      });
+    }
+
+    await fetchLatest();
+
+    tileState.forEach((_, i) => {
+      startLang(i);
+      startDoctor(i);
+      renderTile(i);
     });
 
-    Object.values(doctorMap).forEach(r => {
-      if (!latestTokens[r.doctor_name] ||
-          latestTokens[r.doctor_name].token_number !== r.token_number) {
-
-        latestTokens[r.doctor_name] = r;
-        handleNewToken(r.doctor_name, r.token_number);
-      }
-    });
-  }
-
-  await fetchLatest();
-
-  tileState.forEach((_, i) => {
-    startLang(i);
-    startDoctor(i);
-    renderTile(i);
-  });
-
-  setInterval(fetchLatest, 3000);
+    setInterval(fetchLatest, 1000);
 
 });
 </script>
